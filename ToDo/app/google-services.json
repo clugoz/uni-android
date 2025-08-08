@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "910860215398",
+    "project_id": "univalle-todo",
+    "storage_bucket": "univalle-todo.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:910860215398:android:2b22c5e5685f36c5c6f9a7",
+        "android_client_info": {
+          "package_name": "online.clugo19.todo"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC9vjPchERLy6c0dHzxxqKfWpX5OIUwyDo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
