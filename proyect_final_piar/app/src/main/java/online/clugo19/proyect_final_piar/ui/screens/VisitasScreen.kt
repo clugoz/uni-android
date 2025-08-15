@@ -26,6 +26,8 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
@@ -49,20 +51,14 @@ fun VisitasScreen(
     val asesores by viewModel.asesores.collectAsState()
     val loading by viewModel.loading.collectAsState()
     val error by viewModel.error.collectAsState()
+    val visitas by viewModel.visitas.collectAsState()
 
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
-    // formulario (saveable para no perder con recomposición)
-    var escuelaId by rememberSaveable { mutableStateOf<String?>(null) }
-    var escuelaNombre by rememberSaveable { mutableStateOf("") }
-
-    var asesoresSeleccionados by rememberSaveable { mutableStateOf(setOf<String>()) }
-    var asesoresResumen by rememberSaveable { mutableStateOf("") }
-
-    var fechaIso by rememberSaveable { mutableStateOf("") }      // yyyy-MM-dd
-    var horaEntrada by rememberSaveable { mutableStateOf("") }   // HH:mm
-    var horaSalida by rememberSaveable { mutableStateOf("") }    // HH:mm
+    // Tab state
+    var selectedTab by rememberSaveable { mutableStateOf(0) }
+    val tabs = listOf("Formulario", "Historial")
 
     LaunchedEffect(error) {
         if (!error.isNullOrBlank()) {
@@ -71,118 +67,188 @@ fun VisitasScreen(
     }
 
     Scaffold(snackbarHost = { SnackbarHost(snackbar) }) { padding ->
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(16.dp)
         ) {
-            // Loading overlay
-            if (loading) {
-                Column(
-                    modifier = Modifier.align(Alignment.Center),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    CircularProgressIndicator()
-                    Spacer(Modifier.height(12.dp))
-                    Text("Cargando…")
+            TabRow(selectedTabIndex = selectedTab) {
+                tabs.forEachIndexed { index, title ->
+                    Tab(
+                        selected = selectedTab == index,
+                        onClick = { selectedTab = index },
+                        text = { Text(title) }
+                    )
                 }
             }
 
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+            when (selectedTab) {
+                0 -> FormularioVisita(
+                    viewModel = viewModel,
+                    escuelas = escuelas,
+                    asesores = asesores,
+                    loading = loading,
+                    snackbar = snackbar,
+                    onSaved = onSaved
+                )
+
+                1 -> HistorialVisitas(visitas = visitas)
+            }
+        }
+    }
+}
+
+/* =========================
+   FORMULARIO DE VISITA
+   ========================= */
+
+@Composable
+private fun FormularioVisita(
+    viewModel: VisitasViewModel,
+    escuelas: List<Pair<String, String>>,
+    asesores: List<Pair<String, String>>,
+    loading: Boolean,
+    snackbar: SnackbarHostState,
+    onSaved: () -> Unit
+) {
+    val scope = rememberCoroutineScope()
+
+    // Estado del formulario
+    var escuelaId by rememberSaveable { mutableStateOf<String?>(null) }
+    var escuelaNombre by rememberSaveable { mutableStateOf("") }
+
+    var asesoresSeleccionados by rememberSaveable { mutableStateOf(setOf<String>()) }
+
+    var fechaIso by rememberSaveable { mutableStateOf("") }      // yyyy-MM-dd
+    var horaEntrada by rememberSaveable { mutableStateOf("") }   // HH:mm
+    var horaSalida by rememberSaveable { mutableStateOf("") }    // HH:mm
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        // loading overlay
+        if (loading) {
+            Column(
+                modifier = Modifier.align(Alignment.Center),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                item {
-                    Text("Nueva visita", style = MaterialTheme.typography.headlineSmall)
-                }
+                CircularProgressIndicator()
+                Spacer(Modifier.height(12.dp))
+                Text("Cargando…")
+            }
+        }
 
-                item {
-                    EscuelasDropdown(
-                        label = "Escuela",
-                        opciones = escuelas,
-                        seleccionadoId = escuelaId,
-                        seleccionadoNombre = escuelaNombre,
-                        onSeleccion = { id, nombre ->
-                            escuelaId = id
-                            escuelaNombre = nombre
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            item {
+                Text("Nueva visita", style = MaterialTheme.typography.headlineSmall)
+            }
+
+            item {
+                EscuelasDropdown(
+                    label = "Escuela",
+                    opciones = escuelas,
+                    seleccionadoId = escuelaId,
+                    seleccionadoNombre = escuelaNombre,
+                    onSeleccion = { id, nombre ->
+                        escuelaId = id
+                        escuelaNombre = nombre
+                    }
+                )
+            }
+
+            item {
+                AsesoresDropdownMulti(
+                    label = "Asesores",
+                    opciones = asesores,
+                    seleccionados = asesoresSeleccionados,
+                    onSeleccionadosChange = { set -> asesoresSeleccionados = set }
+                )
+            }
+
+            item {
+                DatePickerFieldNative(
+                    label = "Fecha",
+                    value = fechaIso,
+                    onValueChange = { fechaIso = it }
+                )
+            }
+
+            item {
+                TimePickerFieldNative(
+                    label = "Hora de entrada",
+                    value = horaEntrada,
+                    onValueChange = { horaEntrada = it }
+                )
+            }
+
+            item {
+                TimePickerFieldNative(
+                    label = "Hora de salida",
+                    value = horaSalida,
+                    onValueChange = { horaSalida = it }
+                )
+            }
+
+            item {
+                Button(
+                    onClick = {
+                        val ok = escuelaId != null &&
+                                fechaIso.isNotBlank() &&
+                                horaEntrada.isNotBlank() &&
+                                horaSalida.isNotBlank() &&
+                                asesoresSeleccionados.isNotEmpty()
+
+                        if (!ok) {
+                            scope.launch { snackbar.showSnackbar("Completa todos los campos.") }
+                            return@Button
                         }
-                    )
-                }
 
-                item {
-                    AsesoresDropdownMulti(
-                        label = "Asesores",
-                        opciones = asesores,
-                        seleccionados = asesoresSeleccionados,
-                        onSeleccionadosChange = { set -> asesoresSeleccionados = set }
-                    )
-                }
+                        val asesoresNombres = asesores
+                            .filter { asesoresSeleccionados.contains(it.first) }
+                            .map { it.second }
 
-                item {
-                    DatePickerFieldNative(
-                        label = "Fecha",
-                        value = fechaIso,
-                        onValueChange = { fechaIso = it }
-                    )
-                }
+                        val visita = Visita(
+                            escuelaId = escuelaId!!,
+                            fechaIso = fechaIso,
+                            horaEntrada = horaEntrada,
+                            horaSalida = horaSalida,
+                            asesoresIds = asesoresSeleccionados.toList()
+                        )
 
-                item {
-                    TimePickerFieldNative(
-                        label = "Hora de entrada",
-                        value = horaEntrada,
-                        onValueChange = { horaEntrada = it }
-                    )
-                }
+                        // Guardar (pasamos nombres denormalizados)
+                        viewModel.crearVisita(
+                            v = visita,
+                            escuelaNombre = escuelaNombre,
+                            asesoresNombres = asesoresNombres
+                        ) { exito ->
+                            scope.launch {
+                                if (exito) {
+                                    // 🔄 1) LIMPIA
+                                    escuelaNombre = ""
+                                    asesoresSeleccionados = emptySet()
+                                    fechaIso = ""
+                                    horaEntrada = ""
+                                    horaSalida = ""
+                                    onSaved()
 
-                item {
-                    TimePickerFieldNative(
-                        label = "Hora de salida",
-                        value = horaSalida,
-                        onValueChange = { horaSalida = it }
-                    )
-                }
-
-                item {
-                    Button(
-                        onClick = {
-                            val ok = escuelaId != null &&
-                                    fechaIso.isNotBlank() &&
-                                    horaEntrada.isNotBlank() &&
-                                    horaSalida.isNotBlank() &&
-                                    asesoresSeleccionados.isNotEmpty()
-
-                            if (!ok) {
-                                scope.launch { snackbar.showSnackbar("Completa todos los campos.") }
-                                return@Button
-                            }
-
-                            val visita = Visita(
-                                escuelaId = escuelaId!!,
-                                fechaIso = fechaIso,
-                                horaEntrada = horaEntrada,
-                                horaSalida = horaSalida,
-                                asesoresIds = asesoresSeleccionados.toList()
-                            )
-
-                            viewModel.crearVisita(visita) { exito ->
-                                scope.launch {
-                                    if (exito) {
-                                        snackbar.showSnackbar("Visita guardada.")
-                                        onSaved()
-                                    } else {
-                                        snackbar.showSnackbar("No se pudo guardar.")
-                                    }
+                                    scope.launch { snackbar.showSnackbar("Visita guardada.") }
+                                } else {
+                                    snackbar.showSnackbar("No se pudo guardar.")
                                 }
                             }
-                        },
-                        enabled = !loading,
-                        modifier = Modifier.fillMaxWidth()
-                    ) { Text("Guardar visita") }
-                }
-
-                item { Spacer(Modifier.height(8.dp)) }
+                        }
+                    },
+                    enabled = !loading,
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Guardar visita") }
             }
+
+            item { Spacer(Modifier.height(8.dp)) }
         }
     }
 }
@@ -212,7 +278,7 @@ private fun EscuelasDropdown(
             label = { Text(label) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
             modifier = Modifier
-                .menuAnchor()    // 👈 necesario para posicionar el menú
+                .menuAnchor()
                 .fillMaxWidth()
         )
 
@@ -240,10 +306,10 @@ private fun EscuelasDropdown(
     }
 }
 
-/* ---------- MultiSelect Asesores (diálogo) ---------- */
+/* ---------- Asesores: Dropdown multi‑select con checkboxes ---------- */
 
-@Composable
 @OptIn(ExperimentalMaterial3Api::class)
+@Composable
 private fun AsesoresDropdownMulti(
     label: String,
     opciones: List<Pair<String, String>>,   // (id, nombre)
@@ -252,7 +318,6 @@ private fun AsesoresDropdownMulti(
 ) {
     var expanded by remember { mutableStateOf(false) }
 
-    // Texto resumen (los nombres de los seleccionados)
     val resumen = remember(opciones, seleccionados) {
         if (seleccionados.isEmpty()) ""
         else opciones.filter { seleccionados.contains(it.first) }
@@ -284,13 +349,10 @@ private fun AsesoresDropdownMulti(
                     onClick = { expanded = false }
                 )
             } else {
-                // Ítem para limpiar
                 DropdownMenuItem(
                     text = { Text("Limpiar selección") },
                     onClick = { onSeleccionadosChange(emptySet()) }
                 )
-
-                // Lista con checkboxes
                 opciones.forEach { (id, nombre) ->
                     DropdownMenuItem(
                         text = {
@@ -300,7 +362,7 @@ private fun AsesoresDropdownMulti(
                             ) {
                                 Checkbox(
                                     checked = seleccionados.contains(id),
-                                    onCheckedChange = null // manejamos toggle en onClick del item
+                                    onCheckedChange = null // toggle en onClick
                                 )
                                 Spacer(Modifier.width(8.dp))
                                 Text(nombre, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -310,12 +372,11 @@ private fun AsesoresDropdownMulti(
                             val next = seleccionados.toMutableSet()
                             if (next.contains(id)) next.remove(id) else next.add(id)
                             onSeleccionadosChange(next)
-                            // NO cerramos para permitir marcar varios; el usuario puede tocar fuera para cerrar
+                            // no cerramos para permitir seleccionar varios;
+                            // el usuario puede tocar fuera o presionar "Hecho"
                         }
                     )
                 }
-
-                // Ítem para cerrar
                 DropdownMenuItem(
                     text = { Text("Hecho") },
                     onClick = { expanded = false }
@@ -325,6 +386,41 @@ private fun AsesoresDropdownMulti(
     }
 }
 
+/* =========================
+   HISTORIAL DE VISITAS
+   ========================= */
+
+@Composable
+private fun HistorialVisitas(
+    visitas: List<VisitasViewModel.VisitaUI>
+) {
+    if (visitas.isEmpty()) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("Sin visitas registradas")
+        }
+        return
+    }
+
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        items(visitas, key = { it.id }) { v ->
+            OutlinedCard(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(12.dp)) {
+                    Text(v.escuelaNombre, style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(4.dp))
+                    Text("Fecha: ${v.fechaIso}")
+                    if (v.asesoresResumen.isNotBlank() && v.asesoresResumen != "—") {
+                        Text("Asesores: ${v.asesoresResumen}")
+                    }
+                }
+            }
+        }
+    }
+}
 
 /* ---------- Date/Time nativos (NO experimentales) ---------- */
 

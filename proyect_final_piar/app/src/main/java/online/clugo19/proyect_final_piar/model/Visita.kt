@@ -5,5 +5,8 @@ data class Visita(
     val fechaIso: String,       // yyyy-MM-dd
     val horaEntrada: String,    // HH:mm
     val horaSalida: String,     // HH:mm
-    val asesoresIds: List<String>
+    val asesoresIds: List<String>,
+    // campos denormalizados para historial
+    val escuelaNombre: String = "",
+    val asesoresNombres: List<String> = emptyList()
 )

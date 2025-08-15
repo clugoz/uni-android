@@ -8,6 +8,7 @@ import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.ListenerRegistration
+import com.google.firebase.firestore.Query
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -32,11 +33,11 @@ class VisitasViewModel : ViewModel() {
     private val _asesores = MutableStateFlow<List<Pair<String, String>>>(emptyList())
     val asesores: StateFlow<List<Pair<String, String>>> = _asesores.asStateFlow()
 
-    // Loading por colección
+    // Loading por catálogo
     private val escLoading = MutableStateFlow(true)
     private val aseLoading = MutableStateFlow(true)
 
-    // Loading combinado para la UI
+    // Loading combinado para la UI (el historial no bloquea el formulario)
     val loading: StateFlow<Boolean> =
         combine(escLoading, aseLoading) { e, a -> e || a }
             .stateIn(viewModelScope, SharingStarted.Eagerly, true)
@@ -45,25 +46,37 @@ class VisitasViewModel : ViewModel() {
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
+    // Historial de visitas (ya listo para pintar)
+    data class VisitaUI(
+        val id: String,
+        val escuelaNombre: String,
+        val fechaIso: String,
+        val asesoresResumen: String
+    )
+
+    private val _visitas = MutableStateFlow<List<VisitaUI>>(emptyList())
+    val visitas: StateFlow<List<VisitaUI>> = _visitas.asStateFlow()
+
     // Listeners Firestore
     private var escuelasListener: ListenerRegistration? = null
     private var asesoresListener: ListenerRegistration? = null
+    private var visitasListener: ListenerRegistration? = null
 
     init {
         Log.d(TAG, "Init ViewModel. uid=${auth.currentUser?.uid}")
-        // Persistencia local ya viene habilitada por defecto en SDKs recientes.
 
         suscribirEscuelas()
         suscribirAsesores()
+        suscribirVisitas()
     }
 
     private fun suscribirEscuelas() {
         escLoading.value = true
         Log.d(TAG, "Suscribiendo ESCUELAS…")
 
-        // ⚠️ Si tus docs NO tienen 'activo', no uses whereEqualTo
+        // Quita whereEqualTo("activo", true) si tus docs no tienen ese campo
         escuelasListener = db.collection("escuelas")
-            // .whereEqualTo("activo", true)
+            //.whereEqualTo("activo", true)
             .addSnapshotListener { snap, e ->
                 if (e != null) {
                     _error.value = "Escuelas: ${e.localizedMessage}"
@@ -95,7 +108,7 @@ class VisitasViewModel : ViewModel() {
         Log.d(TAG, "Suscribiendo ASESORES…")
 
         asesoresListener = db.collection("asesores")
-            // .whereEqualTo("activo", true) // habilítalo si TODOS tienen este campo
+            //.whereEqualTo("activo", true)
             .addSnapshotListener { snap, e ->
                 if (e != null) {
                     _error.value = "Asesores: ${e.localizedMessage}"
@@ -122,17 +135,62 @@ class VisitasViewModel : ViewModel() {
             }
     }
 
+    private fun suscribirVisitas() {
+        Log.d(TAG, "Suscribiendo HISTORIAL…")
+
+        // Si quieres filtrar solo por el usuario actual, descomenta la línea del where:
+        // y crea el índice compuesto si Firestore lo pide (uidCreador + createdAt).
+        visitasListener = db.collection("visitas")
+            //.whereEqualTo("uidCreador", auth.currentUser?.uid)
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .addSnapshotListener { snap, e ->
+                if (e != null) {
+                    _error.value = "Historial: ${e.localizedMessage}"
+                    val fe = e as? FirebaseFirestoreException
+                    Log.e(TAG, "Snapshot HISTORIAL error code=${fe?.code} msg=${e.message}", e)
+                    return@addSnapshotListener
+                }
+
+                val lista = snap?.documents.orEmpty().map { d ->
+                    val id = d.id
+                    val escuelaNombre = d.getString("escuelaNombre") ?: "—"
+                    val fechaIso = d.getString("fecha") ?: "—"
+                    val asesoresNombres = (d.get("asesoresNombres") as? List<*>)?.filterIsInstance<String>().orEmpty()
+                    val asesoresResumen = if (asesoresNombres.isEmpty()) "—" else asesoresNombres.joinToString()
+                    VisitaUI(
+                        id = id,
+                        escuelaNombre = escuelaNombre,
+                        fechaIso = fechaIso,
+                        asesoresResumen = asesoresResumen
+                    )
+                }
+
+                _visitas.value = lista
+                Log.d(TAG, "Historial cargado: ${lista.size} visitas")
+            }
+    }
+
     override fun onCleared() {
         Log.d(TAG, "onCleared(): removiendo listeners")
         escuelasListener?.remove()
         asesoresListener?.remove()
+        visitasListener?.remove()
         super.onCleared()
     }
 
-    fun crearVisita(v: Visita, onDone: (Boolean) -> Unit) {
+    /**
+     * Guarda una visita.
+     * NOTA: mantenemos tu data class Visita existente y pasamos nombres denormalizados aparte.
+     */
+    fun crearVisita(
+        v: Visita,
+        escuelaNombre: String,
+        asesoresNombres: List<String>,
+        onDone: (Boolean) -> Unit
+    ) {
         viewModelScope.launch {
             try {
-                Log.d(TAG, "Creando visita: $v")
+                Log.d(TAG, "Creando visita: $v (escuelaNombre=$escuelaNombre, asesoresNombres=$asesoresNombres)")
                 val data = hashMapOf(
                     "escuelaId" to v.escuelaId,
                     "fecha" to v.fechaIso,
@@ -141,7 +199,10 @@ class VisitasViewModel : ViewModel() {
                     "asesoresIds" to v.asesoresIds,
                     "uidCreador" to auth.currentUser?.uid,
                     "createdAt" to FieldValue.serverTimestamp(),
-                    "updatedAt" to FieldValue.serverTimestamp()
+                    "updatedAt" to FieldValue.serverTimestamp(),
+                    // Denormalizados para el historial
+                    "escuelaNombre" to escuelaNombre,
+                    "asesoresNombres" to asesoresNombres
                 )
                 db.collection("visitas").add(data).await()
                 Log.d(TAG, "Visita creada OK")
