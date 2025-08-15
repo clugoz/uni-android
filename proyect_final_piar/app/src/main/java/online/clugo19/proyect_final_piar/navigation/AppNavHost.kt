@@ -11,7 +11,9 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.google.firebase.auth.FirebaseAuth
-import online.clugo19.proyect_final_piar.AuthViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
+import online.clugo19.proyect_final_piar.viewmodel.AuthViewModel
+import online.clugo19.proyect_final_piar.viewmodel.VisitasViewModel
 import online.clugo19.proyect_final_piar.components.BottomBar
 import online.clugo19.proyect_final_piar.ui.screens.*
 
@@ -62,7 +64,17 @@ fun AppNavHost(viewModel: AuthViewModel) {
                 )
             }
 
-            composable(Routes.VISITAS) { VisitasScreen() }
+            composable(Routes.VISITAS) {
+                val visitasVM: VisitasViewModel = viewModel()
+                VisitasScreen(
+                    viewModel = visitasVM,
+                    onSaved = {
+                        // lo que quieras hacer después de guardar, por ejemplo volver:
+                        // navController.popBackStack()
+                    }
+                )
+            }
+
             composable(Routes.ATENCIONES) { AtencionesScreen() }
 
             composable(Routes.PERFIL) {

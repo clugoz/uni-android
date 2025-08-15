@@ -18,10 +18,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.*
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lint.kotlin.metadata.Visibility
-import online.clugo19.proyect_final_piar.AuthViewModel
+import online.clugo19.proyect_final_piar.viewmodel.AuthViewModel
 import online.clugo19.proyect_final_piar.R
-import online.clugo19.proyect_final_piar.ui.state.AuthUiState
 import online.clugo19.proyect_final_piar.ui.theme.AzulClaro
 import online.clugo19.proyect_final_piar.ui.theme.customTextFieldColors
 

@@ -6,6 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import online.clugo19.proyect_final_piar.navigation.AppNavHost
 import online.clugo19.proyect_final_piar.ui.theme.Proyect_final_piarTheme
+import online.clugo19.proyect_final_piar.viewmodel.AuthViewModel
 
 class MainActivity : ComponentActivity() {
     private val viewModel: AuthViewModel by viewModels()

@@ -42,27 +42,28 @@ android {
 }
 
 dependencies {
-    // Import the Firebase BoM
+    // Firebase (BoM + artefactos sin versión)
     implementation(platform(libs.firebase.bom))
-    // TODO: Add the dependencies for Firebase products you want to use
-    // When using the BoM, don't specify versions in Firebase dependencies
-    implementation(libs.firebase.analytics)
-
-    // Auth
+//    implementation(libs.firebase.analytics)
     implementation(libs.firebase.auth.ktx)
-    implementation(libs.androidx.navigation.compose)
-    implementation(libs.androidx.material.icons.extended)
+    implementation(libs.firebase.firestore.ktx)   // <-- añade Firestore KTX
 
+    // Coroutines para Task.await()
+    implementation(libs.kotlinx.coroutines.play.services)
+
+    // Compose / AndroidX
+    implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
+
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.ui)
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
-    implementation(libs.androidx.espresso.core)
-    implementation(libs.androidx.animation.core.lint)
+    implementation(libs.androidx.material.icons.extended)
+
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
@@ -71,3 +72,4 @@ dependencies {
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
 }
+
